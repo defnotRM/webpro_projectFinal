@@ -1,0 +1,231 @@
+{
+  "menus": [
+    {
+      "id": 1,
+      "name": "สันคอหมูสไลซ์คุโรบูตะ",
+      "category": "เนื้อหมู",
+      "price": 79,
+      "description": "สันคอหมูคุโรบูตะคัดพิเศษ สไลซ์บางนุ่มละมุนลิ้น แทรกมันกำลังดี",
+      "image": "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": true
+    },
+    {
+      "id": 2,
+      "name": "หมูสามชั้นสไลซ์พรีเมียม",
+      "category": "เนื้อหมู",
+      "price": 75,
+      "description": "หมูสามชั้นสไลซ์บาง หอมนุ่ม เข้ากันดีกับน้ำซุปหม่าล่าและน้ำดำ",
+      "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": false
+    },
+    {
+      "id": 3,
+      "name": "เนื้อวากิวริบอายสไลซ์",
+      "category": "เนื้อวัว",
+      "price": 129,
+      "description": "เนื้อวากิวลายหินอ่อนสวยงาม ลวกเพียง 5 วินาที นุ่มละลายในปาก",
+      "image": "https://images.unsplash.com/photo-1558030006-450675393462?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": true
+    },
+    {
+      "id": 4,
+      "name": "เนื้อเสือร้องไห้ออสเตรเลีย",
+      "category": "เนื้อวัว",
+      "price": 99,
+      "description": "เนื้อส่วนติดมันหอมกรุ่น เคี้ยวหนึบสู้ฟัน รสชาติเข้มข้น",
+      "image": "https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": false
+    },
+    {
+      "id": 5,
+      "name": "กุ้งแม่น้ำผ่าหลังสด",
+      "category": "ซีฟู้ด",
+      "price": 109,
+      "description": "กุ้งแม่น้ำคัดไซส์สดใหม่ เนื้อเด้งหวาน มันกุ้งเยิ้ม",
+      "image": "https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": true
+    },
+    {
+      "id": 6,
+      "name": "ปลาหมึกกล้วยหั่นแว่น",
+      "category": "ซีฟู้ด",
+      "price": 69,
+      "description": "ปลาหมึกกล้วยสดเนื้อกรอบเด้ง ไม่มีกลิ่นคาว",
+      "image": "https://images.unsplash.com/photo-1599084993091-1cb5c0721cc6?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": false
+    },
+    {
+      "id": 7,
+      "name": "ชุดผักรวมสุขภาพ",
+      "category": "ผัก",
+      "price": 59,
+      "description": "รวมผักกาดขาว ผักบุ้ง กวางตุ้งฮ่องเต้ ข้าวโพดหวาน และเห็ดเข็มทอง",
+      "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": true
+    },
+    {
+      "id": 8,
+      "name": "เห็ดรวม 3 อย่าง",
+      "category": "ผัก",
+      "price": 49,
+      "description": "เห็ดเข็มทอง เห็ดชิเมจิ และเห็ดออรินจิสดจากฟาร์ม",
+      "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": false
+    },
+    {
+      "id": 9,
+      "name": "ลูกชิ้นกุ้งปั้นสด & เต้าหู้ชีส",
+      "category": "ลูกชิ้น",
+      "price": 65,
+      "description": "ลูกชิ้นกุ้งแท้ผสมเต้าหู้ปลาไส้ชีสเยิ้ม ยอดฮิตประจำร้าน",
+      "image": "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": true
+    },
+    {
+      "id": 10,
+      "name": "เกี๊ยวกุ้งจักรพรรดิ",
+      "category": "ลูกชิ้น",
+      "price": 59,
+      "description": "เกี๊ยวแป้งบางห่อกุ้งเต็มคำ นุ่มเด้งหอมน้ำมันงา",
+      "image": "https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": false
+    },
+    {
+      "id": 11,
+      "name": "น้ำซุปสุกี้น้ำดำญี่ปุ่น (ชาบู)",
+      "category": "น้ำซุป",
+      "price": 49,
+      "description": "น้ำซุปสุกี้ยากี้ญี่ปุ่นเคี่ยวจากปลาโอแห้งและโชยุ หอมหวานกลมกล่อม",
+      "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": true
+    },
+    {
+      "id": 12,
+      "name": "ชาเขียวคั่วเย็น (รีฟิล)",
+      "category": "เครื่องดื่ม",
+      "price": 39,
+      "description": "ชาเขียวคั่วญี่ปุ่นหอมสดชื่น ตัดเลี่ยนได้ดีเยี่ยม เติมได้ไม่อั้น",
+      "image": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=80",
+      "available": true,
+      "recommended": false
+    }
+  ],
+  "tables": [
+    {
+      "id": 1,
+      "tableNo": "A01",
+      "seats": 2,
+      "status": "available"
+    },
+    {
+      "id": 2,
+      "tableNo": "A02",
+      "seats": 4,
+      "status": "occupied"
+    },
+    {
+      "id": 3,
+      "tableNo": "A03",
+      "seats": 4,
+      "status": "available"
+    },
+    {
+      "id": 4,
+      "tableNo": "A04",
+      "seats": 6,
+      "status": "calling"
+    },
+    {
+      "id": 5,
+      "tableNo": "A05",
+      "seats": 4,
+      "status": "occupied"
+    },
+    {
+      "id": 6,
+      "tableNo": "A06",
+      "seats": 2,
+      "status": "available"
+    },
+    {
+      "id": 7,
+      "tableNo": "A07",
+      "seats": 6,
+      "status": "billing"
+    },
+    {
+      "id": 8,
+      "tableNo": "A08",
+      "seats": 4,
+      "status": "available"
+    }
+  ],
+  "orders": [
+    {
+      "id": 101,
+      "tableNo": "A05",
+      "items": [
+        {
+          "menuId": 1,
+          "name": "สันคอหมูสไลซ์คุโรบูตะ",
+          "price": 79,
+          "quantity": 2,
+          "image": "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=600&auto=format&fit=crop&q=80"
+        },
+        {
+          "menuId": 7,
+          "name": "ชุดผักรวมสุขภาพ",
+          "price": 59,
+          "quantity": 1,
+          "image": "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80"
+        },
+        {
+          "menuId": 9,
+          "name": "ลูกชิ้นกุ้งปั้นสด & เต้าหู้ชีส",
+          "price": 65,
+          "quantity": 1,
+          "image": "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?w=600&auto=format&fit=crop&q=80"
+        }
+      ],
+      "totalPrice": 282,
+      "status": "preparing",
+      "note": "ขอตะเกียบเพิ่ม 1 คู่ครับ",
+      "createdAt": "2026-11-14T14:15:00.000Z"
+    },
+    {
+      "id": 102,
+      "tableNo": "A02",
+      "items": [
+        {
+          "menuId": 3,
+          "name": "เนื้อวากิวริบอายสไลซ์",
+          "price": 129,
+          "quantity": 2,
+          "image": "https://images.unsplash.com/photo-1558030006-450675393462?w=600&auto=format&fit=crop&q=80"
+        },
+        {
+          "menuId": 11,
+          "name": "น้ำซุปสุกี้น้ำดำญี่ปุ่น (ชาบู)",
+          "price": 49,
+          "quantity": 1,
+          "image": "https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&auto=format&fit=crop&q=80"
+        }
+      ],
+      "totalPrice": 307,
+      "status": "pending",
+      "note": "",
+      "createdAt": "2026-11-14T14:25:00.000Z"
+    }
+  ]
+}
