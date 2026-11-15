@@ -10,7 +10,7 @@ import {
   Utensils
 } from 'lucide-react'
 import { useOrder } from '../context/OrderContext'
-import { createOrder, getTables, updateTableStatus } from '../services/sukiApi'
+import { createOrder, getMenus, getTables, updateTableStatus } from '../services/sukiApi'
 
 /**
  * [คนที่ 1 รับผิดชอบ]
@@ -31,6 +31,9 @@ export default function CartModal({ isOpen, onClose }) {
 
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [unavailableMenuIds, setUnavailableMenuIds] = useState([])
+  const [checkoutError, setCheckoutError] = useState('')
+  const hasUnavailableItems = cart.some((item) => unavailableMenuIds.includes(item.menuId))
 
   // เปิด-ปิดด้วย Native <dialog> showModal() ตามมาตรฐาน HTML ปัจจุบัน
   useEffect(() => {
@@ -45,10 +48,23 @@ export default function CartModal({ isOpen, onClose }) {
 
   const handleConfirmOrder = async (e) => {
     e.preventDefault()
-    if (cart.length === 0) return
+    if (cart.length === 0 || submitting) return
 
     try {
       setSubmitting(true)
+      setCheckoutError('')
+      const [menus, tables] = await Promise.all([getMenus(), getTables()])
+      const availableMenuIds = new Set(menus.filter((menu) => menu.available).map((menu) => menu.id))
+      const unavailableItems = cart.filter((item) => !availableMenuIds.has(item.menuId))
+      setUnavailableMenuIds(unavailableItems.map((item) => item.menuId))
+      if (unavailableItems.length > 0) return
+
+      const table = tables.find((item) => item.tableNo === selectedTable)
+      if (!table) {
+        setCheckoutError(`ไม่พบโต๊ะ ${selectedTable} กรุณาเลือกโต๊ะใหม่`)
+        return
+      }
+
       const newOrderPayload = {
         tableNo: selectedTable,
         items: cart.map((item) => ({
@@ -64,23 +80,23 @@ export default function CartModal({ isOpen, onClose }) {
         createdAt: new Date().toISOString()
       }
 
-      // 1. บันทึกออร์เดอร์ลงระบบกลาง (POST /orders)
       await createOrder(newOrderPayload)
-
-      // 2. อัปเดตสถานะโต๊ะเป็นมีลูกค้าใช้งาน (occupied)
-      const tables = await getTables()
-      const currentTableObj = tables.find((t) => t.tableNo === selectedTable)
-      if (currentTableObj && currentTableObj.status === 'available') {
-        await updateTableStatus(currentTableObj.id, 'occupied')
-      }
-
       clearCart()
       setNote('')
-      showToast(`ส่งออร์เดอร์โต๊ะ ${selectedTable} เข้าห้องครัวเรียบร้อยแล้ว!`)
       onClose()
       navigate('/my-orders')
+
+      // เมื่อครัวได้รับออร์เดอร์แล้ว ให้แจ้งผลการอัปเดตโต๊ะแยกกัน
+      try {
+        if (table.status === 'available') {
+          await updateTableStatus(table.id, 'occupied')
+        }
+        showToast(`ส่งออร์เดอร์โต๊ะ ${selectedTable} เข้าห้องครัวเรียบร้อยแล้ว!`)
+      } catch {
+        showToast(`ส่งออร์เดอร์โต๊ะ ${selectedTable} แล้ว แต่อัปเดตสถานะโต๊ะไม่สำเร็จ`, 'info')
+      }
     } catch (err) {
-      showToast(`เกิดข้อผิดพลาด: ${err.message} (กรุณาเช็กว่ารัน npm run api แล้ว)`, 'error')
+      setCheckoutError(`ส่งออร์เดอร์ไม่สำเร็จ กรุณาลองอีกครั้ง (${err.message})`)
     } finally {
       setSubmitting(false)
     }
@@ -90,6 +106,9 @@ export default function CartModal({ isOpen, onClose }) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
+      onCancel={(event) => {
+        if (submitting) event.preventDefault()
+      }}
       aria-labelledby="cart-modal-title"
       className="m-auto w-full max-w-lg rounded-2xl bg-white p-0 text-slate-800 shadow-2xl border border-slate-200"
     >
@@ -112,12 +131,19 @@ export default function CartModal({ isOpen, onClose }) {
           <button
             type="button"
             onClick={onClose}
+            disabled={submitting}
             aria-label="ปิดหน้าต่างตะกร้า"
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {(checkoutError || hasUnavailableItems) && (
+          <div role="alert" className="mx-6 mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
+            {checkoutError || 'บางเมนูหมดหรือถูกนำออกแล้ว กรุณาลบรายการที่ระบุในตะกร้าแล้วลองอีกครั้ง'}
+          </div>
+        )}
 
         {/* รายการอาหารในตะกร้า */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
@@ -148,6 +174,9 @@ export default function CartModal({ isOpen, onClose }) {
                       <h4 className="font-medium text-sm text-slate-900 truncate">
                         {item.name}
                       </h4>
+                      {unavailableMenuIds.includes(item.menuId) && (
+                        <p className="text-xs font-semibold text-red-700">เมนูนี้สั่งไม่ได้</p>
+                      )}
                       <p className="text-xs text-slate-500">
                         ฿{item.price} x {item.quantity} ={' '}
                         <span className="font-semibold text-red-600">
@@ -160,6 +189,7 @@ export default function CartModal({ isOpen, onClose }) {
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
+                        disabled={submitting}
                         onClick={() => updateCartQuantity(item.menuId, item.quantity - 1)}
                         aria-label={`ลดจำนวน ${item.name}`}
                         className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-100 cursor-pointer"
@@ -171,6 +201,7 @@ export default function CartModal({ isOpen, onClose }) {
                       </span>
                       <button
                         type="button"
+                        disabled={submitting}
                         onClick={() => updateCartQuantity(item.menuId, item.quantity + 1)}
                         aria-label={`เพิ่มจำนวน ${item.name}`}
                         className="w-7 h-7 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-100 cursor-pointer"
@@ -179,6 +210,7 @@ export default function CartModal({ isOpen, onClose }) {
                       </button>
                       <button
                         type="button"
+                        disabled={submitting}
                         onClick={() => removeFromCart(item.menuId)}
                         aria-label={`ลบ ${item.name} ออกจากตะกร้า`}
                         className="ml-1 p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
@@ -202,6 +234,7 @@ export default function CartModal({ isOpen, onClose }) {
                   id="order-note"
                   type="text"
                   value={note}
+                  disabled={submitting}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="เช่น ขอตะเกียบเพิ่ม, น้ำจิ้มสุกี้พริกกระเทียมเยอะๆ"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -222,6 +255,7 @@ export default function CartModal({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
+              disabled={submitting}
               className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-100 cursor-pointer"
             >
               เลือกอาหารต่อ
