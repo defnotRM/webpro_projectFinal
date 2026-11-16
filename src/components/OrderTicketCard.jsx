@@ -1,15 +1,28 @@
-import { Clock, ChefHat, CheckCircle2, Trash2, MessageSquare } from 'lucide-react'
+import { useState } from 'react'
+import { Clock, ChefHat, CheckCircle2, Trash2, MessageSquare, X } from 'lucide-react'
 import OrderStatusBadge from './OrderStatusBadge'
 
 /**
  * [คนที่ 2 รับผิดชอบ]
  * Component 6: OrderTicketCard - การ์ดใบออร์เดอร์สำหรับพนักงานห้องครัว กดเปลี่ยนสถานะตามลำดับขั้นตอน
  */
-export default function OrderTicketCard({ order, onUpdateStatus, onDeleteOrder }) {
+export default function OrderTicketCard({
+  order,
+  onUpdateStatus,
+  onDeleteOrder,
+  isBusy = false
+}) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
   const formattedTime = new Date(order.createdAt).toLocaleTimeString('th-TH', {
     hour: '2-digit',
     minute: '2-digit'
   })
+
+  const totalItemsCount = (order.items || []).reduce(
+    (sum, item) => sum + (item.quantity || 0),
+    0
+  )
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col justify-between">
@@ -22,7 +35,7 @@ export default function OrderTicketCard({ order, onUpdateStatus, onDeleteOrder }
             </span>
             <div>
               <span className="text-xs font-semibold text-slate-700 block">
-                Order #{order.id}
+                Order #{order.id} ({totalItemsCount} ถาด)
               </span>
               <span className="text-xs text-slate-400 flex items-center gap-1">
                 <Clock className="w-3 h-3" /> {formattedTime} น.
@@ -71,49 +84,78 @@ export default function OrderTicketCard({ order, onUpdateStatus, onDeleteOrder }
           <span className="font-bold text-base text-slate-900">฿{order.totalPrice}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {order.status === 'pending' && (
+        {confirmingDelete ? (
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => onUpdateStatus(order.id, 'preparing')}
-              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              disabled={isBusy}
+              onClick={() => {
+                setConfirmingDelete(false)
+                onDeleteOrder(order.id)
+              }}
+              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white text-xs font-semibold cursor-pointer"
             >
-              <ChefHat className="w-4 h-4" />
-              <span>รับออร์เดอร์ / เตรียมอาหาร</span>
+              ยืนยันลบ
             </button>
-          )}
-
-          {order.status === 'preparing' && (
             <button
               type="button"
-              onClick={() => onUpdateStatus(order.id, 'served')}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
+              disabled={isBusy}
+              onClick={() => setConfirmingDelete(false)}
+              aria-label="ยกเลิกการลบ"
+              className="p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>เสิร์ฟอาหารแล้ว</span>
+              <X className="w-4 h-4" />
             </button>
-          )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            {order.status === 'pending' && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => onUpdateStatus(order.id, 'preparing')}
+                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              >
+                <ChefHat className="w-4 h-4" />
+                <span>{isBusy ? 'กำลังบันทึก...' : 'รับออร์เดอร์ / เตรียมอาหาร'}</span>
+              </button>
+            )}
 
-          {order.status === 'served' && (
+            {order.status === 'preparing' && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => onUpdateStatus(order.id, 'served')}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer disabled:cursor-not-allowed"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{isBusy ? 'กำลังบันทึก...' : 'เสิร์ฟอาหารแล้ว'}</span>
+              </button>
+            )}
+
+            {order.status === 'served' && (
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => onUpdateStatus(order.id, 'preparing')}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-50 text-xs font-medium cursor-pointer"
+              >
+                ย้อนสถานะ
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => onUpdateStatus(order.id, 'preparing')}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-medium cursor-pointer"
+              disabled={isBusy}
+              onClick={() => setConfirmingDelete(true)}
+              aria-label={`ลบออร์เดอร์ #${order.id}`}
+              className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+              title="ลบรายการออร์เดอร์"
             >
-              ย้อนสถานะ
+              <Trash2 className="w-4 h-4" />
             </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onDeleteOrder(order.id)}
-            aria-label={`ลบออร์เดอร์ #${order.id}`}
-            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-            title="ลบรายการออร์เดอร์"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

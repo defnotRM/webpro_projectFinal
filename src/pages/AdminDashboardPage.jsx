@@ -5,7 +5,9 @@ import {
   Users,
   Utensils,
   Trophy,
-  RotateCcw
+  RotateCcw,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react'
 import { useOrder } from '../context/OrderContext'
 import { getAllOrders, getMenus, getTables, updateTableStatus } from '../services/sukiApi'
@@ -23,19 +25,25 @@ export default function AdminDashboardPage() {
   const [menus, setMenus] = useState([])
   const [tables, setTables] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [historyTableFilter, setHistoryTableFilter] = useState('all')
+  const [historyStatusFilter, setHistoryStatusFilter] = useState('all')
 
   const fetchDashboardData = async () => {
     try {
+      setError(null)
       const [ordersData, menusData, tablesData] = await Promise.all([
         getAllOrders(),
         getMenus(),
         getTables()
       ])
-      setOrders(ordersData)
+      setOrders(
+        [...ordersData].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      )
       setMenus(menusData)
       setTables(tablesData)
     } catch (err) {
-      // จัดการกรณีโหลดไม่สำเร็จ
+      setError('ไม่สามารถโหลดข้อมูลสถิติจากระบบกลางได้ กรุณาตรวจสอบว่ารัน npm run api แล้ว')
     } finally {
       setLoading(false)
     }
@@ -81,8 +89,31 @@ export default function AdminDashboardPage() {
       .slice(0, 5)
   }, [orders])
 
+  // กรองประวัติออร์เดอร์ตามโต๊ะและสถานะ
+  const filteredHistoryOrders = useMemo(() => {
+    return orders.filter((o) => {
+      const matchTable =
+        historyTableFilter === 'all' || o.tableNo === historyTableFilter
+      const matchStatus =
+        historyStatusFilter === 'all' || o.status === historyStatusFilter
+      return matchTable && matchStatus
+    })
+  }, [orders, historyTableFilter, historyStatusFilter])
+
   const handleToggleTableStatus = async (table) => {
     const nextStatus = table.status === 'available' ? 'occupied' : 'available'
+    if (nextStatus === 'available') {
+      const unserved = orders.filter(
+        (o) => o.tableNo === table.tableNo && o.status !== 'served'
+      )
+      if (unserved.length > 0) {
+        showToast(
+          `โต๊ะ ${table.tableNo} ยังมีออร์เดอร์ค้างเสิร์ฟ ${unserved.length} รายการ กรุณาเสิร์ฟให้ครบก่อนเคลียร์โต๊ะ`,
+          'error'
+        )
+        return
+      }
+    }
     try {
       await updateTableStatus(table.id, nextStatus)
       showToast(
@@ -98,14 +129,32 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Dashboard สรุปสถิติและภาพรวมร้านสุกี้
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          สรุปยอดขายรวม อันดับเมนูยอดนิยม สถานะโต๊ะ และประวัติออร์เดอร์ทั้งหมดในระบบ
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Dashboard สรุปสถิติและภาพรวมร้านสุกี้
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            สรุปยอดขายรวม อันดับเมนูยอดนิยม สถานะโต๊ะ และประวัติออร์เดอร์ทั้งหมดในระบบ
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={fetchDashboardData}
+          className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-2 self-start sm:self-auto shadow-2xs cursor-pointer"
+        >
+          <RefreshCw className="w-4 h-4" />
+          <span>อัปเดตข้อมูลสถิติ</span>
+        </button>
       </div>
+
+      {error && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex items-center gap-3 text-sm">
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* การ์ดสรุปสถิติ 4 ด้าน (StatsSummaryCard) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -226,11 +275,41 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* ประวัติออร์เดอร์ทั้งหมดในระบบ */}
+      {/* ประวัติออร์เดอร์ทั้งหมดในระบบ พร้อมตัวกรองโต๊ะและสถานะ */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <h2 className="font-bold text-base text-slate-900">
-          ประวัติออร์เดอร์ทั้งหมด ({orders.length} รายการ)
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 className="font-bold text-base text-slate-900">
+            ประวัติออร์เดอร์ทั้งหมด ({filteredHistoryOrders.length} รายการ)
+          </h2>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={historyTableFilter}
+              onChange={(e) => setHistoryTableFilter(e.target.value)}
+              aria-label="กรองประวัติตามโต๊ะ"
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white text-slate-700"
+            >
+              <option value="all">ทุกโต๊ะ</option>
+              {tables.map((t) => (
+                <option key={t.id} value={t.tableNo}>
+                  โต๊ะ {t.tableNo}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={historyStatusFilter}
+              onChange={(e) => setHistoryStatusFilter(e.target.value)}
+              aria-label="กรองประวัติตามสถานะ"
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white text-slate-700"
+            >
+              <option value="all">ทุกสถานะ</option>
+              <option value="pending">รอรับออร์เดอร์</option>
+              <option value="preparing">กำลังเตรียมอาหาร</option>
+              <option value="served">เสิร์ฟแล้ว</option>
+            </select>
+          </div>
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
@@ -244,25 +323,33 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {orders.map((o) => (
-                <tr key={o.id}>
-                  <td className="py-3 px-3 font-semibold">#{o.id}</td>
-                  <td className="py-3 px-3">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-xs font-bold">
-                      {o.tableNo}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-xs text-slate-600">
-                    {o.items?.map((i) => `${i.name} (x${i.quantity})`).join(', ')}
-                  </td>
-                  <td className="py-3 px-3">
-                    <OrderStatusBadge status={o.status} />
-                  </td>
-                  <td className="py-3 px-3 text-right font-bold text-red-600">
-                    ฿{o.totalPrice}
+              {filteredHistoryOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-xs text-slate-400">
+                    ไม่พบรายการออร์เดอร์ตามตัวกรองที่เลือก
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredHistoryOrders.map((o) => (
+                  <tr key={o.id}>
+                    <td className="py-3 px-3 font-semibold">#{o.id}</td>
+                    <td className="py-3 px-3">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-slate-900 text-white text-xs font-bold">
+                        {o.tableNo}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-xs text-slate-600">
+                      {o.items?.map((i) => `${i.name} (x${i.quantity})`).join(', ')}
+                    </td>
+                    <td className="py-3 px-3">
+                      <OrderStatusBadge status={o.status} />
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-red-600">
+                      ฿{o.totalPrice}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

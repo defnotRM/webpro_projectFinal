@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Save, AlertCircle } from 'lucide-react'
+import { X, Save, AlertCircle, Image as ImageIcon } from 'lucide-react'
 
 const CATEGORIES = ['เนื้อหมู', 'เนื้อวัว', 'ซีฟู้ด', 'ผัก', 'ลูกชิ้น', 'น้ำซุป', 'เครื่องดื่ม']
 
@@ -17,11 +17,18 @@ const DEFAULT_FORM = {
  * [คนที่ 2 รับผิดชอบ]
  * Component 7: MenuFormModal - ฟอร์ม Modal สำหรับเพิ่มและแก้ไขเมนูสุกี้ พร้อมระบบตรวจสอบข้อมูล (Validation)
  */
-export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) {
+export default function MenuFormModal({
+  isOpen,
+  onClose,
+  onSave,
+  editingMenu,
+  existingMenus = []
+}) {
   const dialogRef = useRef(null)
   const [formData, setFormData] = useState(DEFAULT_FORM)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const [imagePreviewError, setImagePreviewError] = useState(false)
 
   useEffect(() => {
     if (editingMenu) {
@@ -38,6 +45,7 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
       setFormData(DEFAULT_FORM)
     }
     setErrors({})
+    setImagePreviewError(false)
   }, [editingMenu, isOpen])
 
   useEffect(() => {
@@ -53,26 +61,43 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
   // ตรวจสอบความถูกต้องของข้อมูลก่อนบันทึก (Validation & Error Handling 5 คะแนน)
   const validate = () => {
     const newErrors = {}
-    if (!formData.name.trim()) {
+    const trimmedName = formData.name.trim()
+    if (!trimmedName) {
       newErrors.name = 'กรุณาระบุชื่อเมนูอาหาร'
+    } else {
+      const isDuplicate = existingMenus.some(
+        (m) =>
+          m.name.trim().toLowerCase() === trimmedName.toLowerCase() &&
+          m.id !== editingMenu?.id
+      )
+      if (isDuplicate) {
+        newErrors.name = 'มีชื่อเมนูอาหารนี้ในระบบแล้ว กรุณาใช้ชื่ออื่น'
+      }
     }
+
     const numericPrice = Number(formData.price)
     if (!formData.price || Number.isNaN(numericPrice) || numericPrice <= 0) {
       newErrors.price = 'กรุณาระบุราคาเป็นตัวเลขที่มากกว่า 0'
     }
+
     if (!formData.description.trim()) {
       newErrors.description = 'กรุณาระบุคำอธิบายเมนูสั้นๆ'
     }
-    if (!formData.image.trim()) {
+
+    const trimmedImage = formData.image.trim()
+    if (!trimmedImage) {
       newErrors.image = 'กรุณาระบุลิงก์รูปภาพ (URL)'
+    } else if (!/^https?:\/\/.+/i.test(trimmedImage)) {
+      newErrors.image = 'ลิงก์รูปภาพต้องขึ้นต้นด้วย http:// หรือ https://'
     }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!validate()) return
+    if (saving || !validate()) return
 
     try {
       setSaving(true)
@@ -89,10 +114,15 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
     }
   }
 
+  const hasValidImageUrl = /^https?:\/\/.+/i.test(formData.image.trim())
+
   return (
     <dialog
       ref={dialogRef}
       onClose={onClose}
+      onCancel={(event) => {
+        if (saving) event.preventDefault()
+      }}
       aria-labelledby="menu-form-modal-title"
       className="m-auto w-full max-w-lg rounded-2xl bg-white p-0 text-slate-800 shadow-2xl border border-slate-200"
     >
@@ -104,6 +134,7 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             aria-label="ปิดหน้าต่างฟอร์มเมนู"
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer"
           >
@@ -114,11 +145,16 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
         <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           {/* ชื่อเมนู */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label
+              htmlFor="menu-name-input"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
               ชื่อเมนูอาหาร <span className="text-red-500">*</span>
             </label>
             <input
+              id="menu-name-input"
               type="text"
+              disabled={saving}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="เช่น สันคอหมูสไลซ์คุโรบูตะ"
@@ -134,10 +170,15 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
           {/* หมวดหมู่ และ ราคา */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label
+                htmlFor="menu-category-select"
+                className="block text-xs font-semibold text-slate-700 mb-1"
+              >
                 หมวดหมู่ <span className="text-red-500">*</span>
               </label>
               <select
+                id="menu-category-select"
+                disabled={saving}
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -151,12 +192,17 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
+              <label
+                htmlFor="menu-price-input"
+                className="block text-xs font-semibold text-slate-700 mb-1"
+              >
                 ราคา (บาท / ถาด) <span className="text-red-500">*</span>
               </label>
               <input
+                id="menu-price-input"
                 type="number"
                 min="1"
+                disabled={saving}
                 value={formData.price}
                 onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                 placeholder="เช่น 79"
@@ -170,15 +216,23 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
             </div>
           </div>
 
-          {/* ลิงก์รูปภาพ */}
+          {/* ลิงก์รูปภาพ + ตัวอย่างรูปภาพ */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label
+              htmlFor="menu-image-input"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
               URL รูปภาพอาหาร <span className="text-red-500">*</span>
             </label>
             <input
+              id="menu-image-input"
               type="url"
+              disabled={saving}
               value={formData.image}
-              onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+              onChange={(e) => {
+                setImagePreviewError(false)
+                setFormData({ ...formData, image: e.target.value })
+              }}
               placeholder="https://images.unsplash.com/..."
               className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
             />
@@ -187,15 +241,47 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
                 <AlertCircle className="w-3.5 h-3.5" /> {errors.image}
               </p>
             )}
+
+            {hasValidImageUrl && (
+              <div className="mt-2.5 flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                {!imagePreviewError ? (
+                  <img
+                    src={formData.image.trim()}
+                    alt="ตัวอย่างรูปเมนู"
+                    onError={() => setImagePreviewError(true)}
+                    className="w-14 h-14 rounded-lg object-cover bg-slate-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-slate-200 text-slate-400 flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="text-xs text-slate-600">
+                  <span className="font-semibold block text-slate-800">
+                    ตัวอย่างรูปภาพเมนู
+                  </span>
+                  <span>
+                    {imagePreviewError
+                      ? 'ไม่สามารถโหลดรูปจากลิงก์นี้ได้ กรุณาตรวจสอบ URL'
+                      : 'รูปภาพพร้อมแสดงผลบนหน้าเมนู'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* รายละเอียดอาหาร */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label
+              htmlFor="menu-desc-input"
+              className="block text-xs font-semibold text-slate-700 mb-1"
+            >
               รายละเอียดเมนู <span className="text-red-500">*</span>
             </label>
             <textarea
+              id="menu-desc-input"
               rows={2}
+              disabled={saving}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="อธิบายจุดเด่นของวัตถุดิบ..."
@@ -213,6 +299,7 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
+                disabled={saving}
                 checked={formData.available}
                 onChange={(e) =>
                   setFormData({ ...formData, available: e.target.checked })
@@ -225,6 +312,7 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
+                disabled={saving}
                 checked={formData.recommended}
                 onChange={(e) =>
                   setFormData({ ...formData, recommended: e.target.checked })
@@ -239,6 +327,7 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
         <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
           <button
             type="button"
+            disabled={saving}
             onClick={onClose}
             className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-100 cursor-pointer"
           >
@@ -247,7 +336,7 @@ export default function MenuFormModal({ isOpen, onClose, onSave, editingMenu }) 
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white text-sm font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}</span>
