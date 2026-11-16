@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, useOutletContext, Link } from 'react-router-dom'
 import {
   Search,
   Heart,
@@ -19,7 +19,9 @@ const CATEGORIES = ['ทั้งหมด', 'เมนูโปรด', 'เน
  * [คนที่ 1 รับผิดชอบ]
  * Page 2: MenuOrderPage (/menu) - หน้าแสดงรายการอาหารสุกี้ ค้นหา กรองหมวดหมู่/เมนูโปรด และเลือกใส่ตะกร้า
  */
-export default function MenuOrderPage({ onOpenCart }) {
+export default function MenuOrderPage({ onOpenCart: propOpenCart }) {
+  const outletContext = useOutletContext() || {}
+  const onOpenCart = propOpenCart || outletContext.onOpenCart
   const [searchParams] = useSearchParams()
   const {
     selectedTable,
