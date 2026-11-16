@@ -30,6 +30,9 @@ export default function StaffOrdersPage() {
   const [tables, setTables] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState('')
+  const [busyOrderId, setBusyOrderId] = useState(null)
+  const [busyTableId, setBusyTableId] = useState(null)
 
   // State สำหรับค้นหาเลขโต๊ะ/ชื่ออาหาร และกรองตามสถานะออร์เดอร์
   const [searchTerm, setSearchTerm] = useState('')
@@ -61,7 +64,10 @@ export default function StaffOrdersPage() {
 
   // เปลี่ยนสถานะออร์เดอร์ (pending -> preparing -> served)
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    if (busyOrderId) return
     try {
+      setBusyOrderId(orderId)
+      setActionError('')
       await updateOrderStatus(orderId, newStatus)
       const statusText =
         newStatus === 'preparing'
@@ -70,31 +76,57 @@ export default function StaffOrdersPage() {
           ? 'เสิร์ฟอาหารแล้ว'
           : 'รอรับออร์เดอร์'
       showToast(`อัปเดตออร์เดอร์ #${orderId} เป็น "${statusText}"`)
-      fetchKitchenData()
+      await fetchKitchenData()
     } catch (err) {
       showToast(err.message, 'error')
+    } finally {
+      setBusyOrderId(null)
     }
   }
 
   // ลบออร์เดอร์
   const handleDeleteOrder = async (orderId) => {
+    if (busyOrderId) return
     try {
+      setBusyOrderId(orderId)
+      setActionError('')
       await deleteOrder(orderId)
       showToast(`ลบออร์เดอร์ #${orderId} เรียบร้อยแล้ว`, 'info')
-      fetchKitchenData()
+      await fetchKitchenData()
     } catch (err) {
       showToast(err.message, 'error')
+    } finally {
+      setBusyOrderId(null)
     }
   }
 
   // จัดการสถานะโต๊ะ (รับทราบเรียกพนักงาน หรือ เคลียร์โต๊ะว่างหลังเช็กบิล)
   const handleResolveTable = async (table, nextStatus, toastMsg) => {
+    if (busyTableId) return
+
+    // ตรวจสอบก่อนเคลียร์โต๊ะว่ายังมีออร์เดอร์ค้างเสิร์ฟหรือไม่
+    if (nextStatus === 'available') {
+      const unservedOrders = orders.filter(
+        (o) => o.tableNo === table.tableNo && o.status !== 'served'
+      )
+      if (unservedOrders.length > 0) {
+        const msg = `ไม่สามารถเคลียร์ โต๊ะ ${table.tableNo} ได้ เนื่องจากยังมีออร์เดอร์ค้างเสิร์ฟ ${unservedOrders.length} รายการ กรุณาเสิร์ฟหรือจัดการออร์เดอร์ก่อน`
+        setActionError(msg)
+        showToast(msg, 'error')
+        return
+      }
+    }
+
     try {
+      setBusyTableId(table.id)
+      setActionError('')
       await updateTableStatus(table.id, nextStatus)
       showToast(toastMsg)
-      fetchKitchenData()
+      await fetchKitchenData()
     } catch (err) {
       showToast(err.message, 'error')
+    } finally {
+      setBusyTableId(null)
     }
   }
 
@@ -161,78 +193,108 @@ export default function StaffOrdersPage() {
         </button>
       </div>
 
+      {/* แจ้งเตือนกรณีมีข้อผิดพลาดจากการดำเนินการ เช่น เคลียร์โต๊ะที่ยังมีออร์เดอร์ค้าง */}
+      {actionError && (
+        <div
+          role="alert"
+          className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex items-center justify-between gap-3 text-sm"
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError('')}
+            className="text-xs font-semibold text-red-700 hover:underline shrink-0 cursor-pointer"
+          >
+            ปิดแจ้งเตือน
+          </button>
+        </div>
+      )}
+
       {/* แจ้งเตือนด่วนเมื่อมีโต๊ะกดเรียกพนักงาน หรือ แจ้งขอเช็กบิล */}
       {alertTables.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {alertTables.map((t) => (
-            <div
-              key={t.id}
-              className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
-                t.status === 'calling'
-                  ? 'bg-amber-50 border-amber-300 text-amber-900'
-                  : 'bg-purple-50 border-purple-300 text-purple-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
-                    t.status === 'calling'
-                      ? 'bg-amber-200 text-amber-900'
-                      : 'bg-purple-200 text-purple-900'
-                  }`}
-                >
+          {alertTables.map((t) => {
+            const tableBillTotal = orders
+              .filter((o) => o.tableNo === t.tableNo)
+              .reduce((sum, o) => sum + (o.totalPrice || 0), 0)
+
+            return (
+              <div
+                key={t.id}
+                className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
+                  t.status === 'calling'
+                    ? 'bg-amber-50 border-amber-300 text-amber-900'
+                    : 'bg-purple-50 border-purple-300 text-purple-900'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                      t.status === 'calling'
+                        ? 'bg-amber-200 text-amber-900'
+                        : 'bg-purple-200 text-purple-900'
+                    }`}
+                  >
+                    {t.status === 'calling' ? (
+                      <BellRing className="w-5 h-5" />
+                    ) : (
+                      <Receipt className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div>
+                    <span className="font-bold text-sm block">
+                      โต๊ะ {t.tableNo} —{' '}
+                      {t.status === 'calling'
+                        ? 'กำลังเรียกพนักงาน!'
+                        : `แจ้งขอเช็กบิล! (ยอดรวม ฿${tableBillTotal.toLocaleString()})`}
+                    </span>
+                    <span className="text-xs opacity-80">
+                      {t.status === 'calling'
+                        ? 'ลูกค้าต้องการความช่วยเหลือที่โต๊ะ'
+                        : 'ลูกค้าต้องการชำระเงินและปิดโต๊ะ'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
                   {t.status === 'calling' ? (
-                    <BellRing className="w-5 h-5" />
+                    <button
+                      type="button"
+                      disabled={busyTableId === t.id}
+                      onClick={() =>
+                        handleResolveTable(
+                          t,
+                          'occupied',
+                          `รับทราบการเรียกของ โต๊ะ ${t.tableNo} แล้ว`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" /> รับทราบแล้ว
+                    </button>
                   ) : (
-                    <Receipt className="w-5 h-5" />
+                    <button
+                      type="button"
+                      disabled={busyTableId === t.id}
+                      onClick={() =>
+                        handleResolveTable(
+                          t,
+                          'available',
+                          `เช็กบิลและเคลียร์ โต๊ะ ${t.tableNo} เป็นโต๊ะว่างแล้ว`
+                        )
+                      }
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> ชำระเงิน/เคลียร์โต๊ะ
+                    </button>
                   )}
                 </div>
-                <div>
-                  <span className="font-bold text-sm block">
-                    โต๊ะ {t.tableNo} —{' '}
-                    {t.status === 'calling' ? 'กำลังเรียกพนักงาน!' : 'แจ้งขอเช็กบิล!'}
-                  </span>
-                  <span className="text-xs opacity-80">
-                    {t.status === 'calling'
-                      ? 'ลูกค้าต้องการความช่วยเหลือที่โต๊ะ'
-                      : 'ลูกค้าต้องการชำระเงินและปิดโต๊ะ'}
-                  </span>
-                </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                {t.status === 'calling' ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleResolveTable(
-                        t,
-                        'occupied',
-                        `รับทราบการเรียกของ โต๊ะ ${t.tableNo} แล้ว`
-                      )
-                    }
-                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" /> รับทราบแล้ว
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleResolveTable(
-                        t,
-                        'available',
-                        `เช็กบิลและเคลียร์ โต๊ะ ${t.tableNo} เป็นโต๊ะว่างแล้ว`
-                      )
-                    }
-                    className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> ชำระเงิน/เคลียร์โต๊ะ
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -303,6 +365,7 @@ export default function StaffOrdersPage() {
             <OrderTicketCard
               key={order.id}
               order={order}
+              isBusy={busyOrderId === order.id}
               onUpdateStatus={handleUpdateOrderStatus}
               onDeleteOrder={handleDeleteOrder}
             />

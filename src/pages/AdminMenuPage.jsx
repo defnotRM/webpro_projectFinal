@@ -7,7 +7,8 @@ import {
   CheckCircle2,
   Ban,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from 'lucide-react'
 import { useOrder } from '../context/OrderContext'
 import {
@@ -35,10 +36,13 @@ export default function AdminMenuPage() {
   // State สำหรับค้นหาและกรองเมนูหลังบ้าน
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('ทั้งหมด')
+  const [availabilityFilter, setAvailabilityFilter] = useState('all')
 
-  // State สำหรับเปิด/ปิด Modal เพิ่มหรือแก้ไขเมนู
+  // State สำหรับเปิด/ปิด Modal เพิ่มหรือแก้ไขเมนู และจัดการสถานะปุ่ม
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingMenu, setEditingMenu] = useState(null)
+  const [busyMenuId, setBusyMenuId] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   const fetchMenus = async () => {
     try {
@@ -56,17 +60,22 @@ export default function AdminMenuPage() {
     fetchMenus()
   }, [])
 
-  // กรองเมนูตามคำค้นหาและหมวดหมู่
+  // กรองเมนูตามคำค้นหา หมวดหมู่ และสถานะพร้อมขาย
   const filteredMenus = useMemo(() => {
     return menus.filter((item) => {
       const matchCat =
         categoryFilter === 'ทั้งหมด' || item.category === categoryFilter
+      const matchAvail =
+        availabilityFilter === 'all' ||
+        (availabilityFilter === 'available' && item.available) ||
+        (availabilityFilter === 'unavailable' && !item.available) ||
+        (availabilityFilter === 'recommended' && item.recommended)
       const matchSearch =
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.category.toLowerCase().includes(searchQuery.toLowerCase())
-      return matchCat && matchSearch
+      return matchCat && matchAvail && matchSearch
     })
-  }, [menus, searchQuery, categoryFilter])
+  }, [menus, searchQuery, categoryFilter, availabilityFilter])
 
   // บันทึกเมนูใหม่ หรือ แก้ไขเมนูเดิม (POST / PUT)
   const handleSaveMenu = async (menuData) => {
@@ -78,7 +87,7 @@ export default function AdminMenuPage() {
         await createMenu(menuData)
         showToast(`เพิ่มเมนูใหม่ "${menuData.name}" เรียบร้อยแล้ว`)
       }
-      fetchMenus()
+      await fetchMenus()
     } catch (err) {
       showToast(err.message, 'error')
     }
@@ -86,27 +95,36 @@ export default function AdminMenuPage() {
 
   // สลับสถานะ มีของ / สินค้าหมดชั่วคราว (PATCH)
   const handleToggleAvailable = async (menu) => {
+    if (busyMenuId) return
     try {
+      setBusyMenuId(menu.id)
       await toggleMenuAvailability(menu.id, !menu.available)
       showToast(
         `เปลี่ยนสถานะ "${menu.name}" เป็น ${
           !menu.available ? 'พร้อมขาย' : 'สินค้าหมดชั่วคราว'
         }`
       )
-      fetchMenus()
+      await fetchMenus()
     } catch (err) {
       showToast(err.message, 'error')
+    } finally {
+      setBusyMenuId(null)
     }
   }
 
   // ลบเมนูอาหารออกจากระบบ (DELETE)
   const handleDeleteMenu = async (menu) => {
+    if (busyMenuId) return
     try {
+      setBusyMenuId(menu.id)
       await deleteMenu(menu.id)
+      setConfirmDeleteId(null)
       showToast(`ลบเมนู "${menu.name}" ออกจากระบบแล้ว`, 'info')
-      fetchMenus()
+      await fetchMenus()
     } catch (err) {
       showToast(err.message, 'error')
+    } finally {
+      setBusyMenuId(null)
     }
   }
 
@@ -119,7 +137,7 @@ export default function AdminMenuPage() {
             จัดการรายการเมนูอาหาร (Menu CRUD Management)
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            เพิ่มเมนูสุกี้ใหม่ แก้ไขราคา/รูปภาพ ปรับสถานะสินค้าหมดชั่วคราว หรือลบรายการอาหาร
+            เพิ่มเมนูสุกี้ใหม่ แก้ไขราคา/รูปภาพ ปรับสถานะสินค้าหมดชั่วคราว หรือลบรายการอาหาร ({menus.length} เมนู)
           </p>
         </div>
 
@@ -143,8 +161,8 @@ export default function AdminMenuPage() {
         </div>
       )}
 
-      {/* แถบค้นหาและตัวกรองหมวดหมู่ */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      {/* แถบค้นหา ตัวกรองหมวดหมู่ และตัวกรองสถานะสินค้า */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {CATEGORIES.map((cat) => (
             <button
@@ -162,15 +180,35 @@ export default function AdminMenuPage() {
           ))}
         </div>
 
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ค้นหาชื่อเมนูอาหาร..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-red-500"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <select
+            value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value)}
+            aria-label="กรองตามสถานะเมนู"
+            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            <option value="all">สถานะ: ทั้งหมด ({menus.length})</option>
+            <option value="available">
+              พร้อมขาย ({menus.filter((m) => m.available).length})
+            </option>
+            <option value="unavailable">
+              สินค้าหมด ({menus.filter((m) => !m.available).length})
+            </option>
+            <option value="recommended">
+              เมนูขายดี ({menus.filter((m) => m.recommended).length})
+            </option>
+          </select>
+
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหาชื่อเมนูอาหาร..."
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -201,81 +239,111 @@ export default function AdminMenuPage() {
                   </td>
                 </tr>
               ) : (
-                filteredMenus.map((menu) => (
-                  <tr key={menu.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={menu.image}
-                          alt={menu.name}
-                          className="w-12 h-12 rounded-xl object-cover bg-slate-100 shrink-0"
-                        />
-                        <div>
-                          <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                            <span>{menu.name}</span>
-                            {menu.recommended && (
-                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-800 font-semibold">
-                                <Sparkles className="w-3 h-3" /> ขายดี
-                              </span>
-                            )}
+                filteredMenus.map((menu) => {
+                  const isBusy = busyMenuId === menu.id
+                  const isConfirmingDelete = confirmDeleteId === menu.id
+
+                  return (
+                    <tr key={menu.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={menu.image}
+                            alt={menu.name}
+                            className="w-12 h-12 rounded-xl object-cover bg-slate-100 shrink-0"
+                          />
+                          <div>
+                            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                              <span>{menu.name}</span>
+                              {menu.recommended && (
+                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-800 font-semibold">
+                                  <Sparkles className="w-3 h-3" /> ขายดี
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 line-clamp-1 max-w-md">
+                              {menu.description}
+                            </p>
                           </div>
-                          <p className="text-xs text-slate-500 line-clamp-1 max-w-md">
-                            {menu.description}
-                          </p>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                        {menu.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-bold text-red-600">฿{menu.price}</td>
-                    <td className="py-3 px-4">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleAvailable(menu)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors ${
-                          menu.available
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                            : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                        }`}
-                      >
-                        {menu.available ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5" /> พร้อมขาย
-                          </>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                          {menu.category}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-red-600">฿{menu.price}</td>
+                      <td className="py-3 px-4">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => handleToggleAvailable(menu)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 ${
+                            menu.available
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                              : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
+                          }`}
+                        >
+                          {menu.available ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" /> พร้อมขาย
+                            </>
+                          ) : (
+                            <>
+                              <Ban className="w-3.5 h-3.5" /> สินค้าหมด
+                            </>
+                          )}
+                        </button>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {isConfirmingDelete ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleDeleteMenu(menu)}
+                              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold cursor-pointer"
+                            >
+                              ยืนยันลบ
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => setConfirmDeleteId(null)}
+                              aria-label="ยกเลิกการลบเมนู"
+                              className="p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <Ban className="w-3.5 h-3.5" /> สินค้าหมด
-                          </>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => {
+                                setEditingMenu(menu)
+                                setIsModalOpen(true)
+                              }}
+                              className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-medium flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" /> แก้ไข
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => setConfirmDeleteId(menu.id)}
+                              className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                              title="ลบเมนู"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         )}
-                      </button>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingMenu(menu)
-                            setIsModalOpen(true)
-                          }}
-                          className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-medium flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" /> แก้ไข
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMenu(menu)}
-                          className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
-                          title="ลบเมนู"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -288,6 +356,7 @@ export default function AdminMenuPage() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveMenu}
         editingMenu={editingMenu}
+        existingMenus={menus}
       />
     </div>
   )
